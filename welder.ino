@@ -57,8 +57,9 @@ void loop() {
     duty = 0; // set duty cycle to zero
     digitalWrite(LED_PIN, HIGH); // turn on LED indicator
   }
-  else if (iout > ishort) { // check if output current exceeds short circuit threshold
-    duty = 0; // set duty cycle to zero
+  // invalid else if (iout > ishort) { // check if output current exceeds short circuit threshold
+  else if (iout > ishort && vout < 0.5) { // check if output voltage is bellw 0.5V and output current exceeds short circuit threshold
+    duty = 1; // set duty cycle to smallest current 
     digitalWrite(LED_PIN, HIGH); // turn on LED indicator
   }
   else if (vout > vset) { // check if output voltage exceeds voltage setpoint
