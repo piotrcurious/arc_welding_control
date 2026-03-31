@@ -1,0 +1,17 @@
+# Build artifacts
+*.bin
+*.elf
+*.o
+*.a
+temp_emulator.cpp
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Simulation outputs
+*.png
+eval_results.json

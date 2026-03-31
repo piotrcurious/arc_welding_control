@@ -58,6 +58,7 @@
 #define ARC_SUSTAIN_DURATION_MIN 10 // ms
 #define ARC_SUSTAIN_DURATION_MAX 100 // ms
 #define ARC_SUSTAIN_ESTIMATION_FACTOR 0.5 // ms/A
+#define WIRE_BURN_ESTIMATION_FACTOR 0.1
 
 // Define constants for wire feed correction factor and tolerance range
 #define WIRE_FEED_CORRECTION_FACTOR 0.5 // %
@@ -241,7 +242,7 @@ void loop() {
         stepper_position = stepper_position + wire_feed_steps - wire_feed_error;
 
         // Generate step signal based on stepper motor position and speed
-        step_signal = (stepper_position % (STEPS_PER_REV * MICROSTEP_MODE)) < (stepper_speed / 2);
+        step_signal = ((long)stepper_position % (STEPS_PER_REV * MICROSTEP_MODE)) < (stepper_speed / 2);
         digitalWrite(STEP_PIN, step_signal);
 
         // Update wire feed error based on step signal
@@ -277,7 +278,8 @@ void loop() {
       stepper_position = stepper_position - arc_pulse_duration * wire_burn_pulse_fudge * MICROSTEP_MODE;
 
       // Generate step signal based on stepper motor position and speed
-      step_signal = (stepper_position % (STEPS_PER_REV * MICROSTEP_MODE)) < (stepper_speed / 2);
+      step_signal = ((long)stepper_position % (STEPS_PER_REV * MICROSTEP_MODE)) < (stepper_speed / 2);
+      step_signal = ((long)stepper_position % (STEPS_PER_REV * MICROSTEP_MODE)) < (stepper_speed / 2);
       digitalWrite(STEP_PIN, step_signal);
 
       // Check if timer has reached arc pulse duration value
@@ -305,7 +307,7 @@ void loop() {
       stepper_position = stepper_position + arc_sustain_duration * wire_burn_pulse_fudge * MICROSTEP_MODE;
 
       // Generate step signal based on stepper motor position and speed
-      step_signal = (stepper_position % (STEPS_PER_REV * MICROSTEP_MODE)) < (stepper_speed / 2);
+      step_signal = ((long)stepper_position % (STEPS_PER_REV * MICROSTEP_MODE)) < (stepper_speed / 2);
       digitalWrite(STEP_PIN, step_signal);
 
       // Check if timer has reached arc sustain duration value
