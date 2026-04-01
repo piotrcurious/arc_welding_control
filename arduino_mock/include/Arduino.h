@@ -45,6 +45,16 @@ void delay(unsigned long ms);
 void delayMicroseconds(unsigned int us);
 
 // Math
+#ifndef min
+template<class T, class L>
+auto min(const T& a, const L& b) -> decltype(a < b ? a : b) { return a < b ? a : b; }
+#endif
+
+#ifndef max
+template<class T, class L>
+auto max(const T& a, const L& b) -> decltype(a > b ? a : b) { return a > b ? a : b; }
+#endif
+
 #define abs(x) ((x)>0?(x):-(x))
 #define constrain(amt,low,high) ((amt)<(low)?(low):((amt)>(high)?(high):(amt)))
 long map(long x, long in_min, long in_max, long out_min, long out_max);

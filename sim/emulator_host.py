@@ -30,8 +30,8 @@ class ArduinoEmulator:
         with open(self.ino_path, "r") as ino:
             content = ino.read()
 
-        funcs = re.findall(r'\n\w+\s+(\w+)\s*\([^)]*\)\s*\{', content)
-        forward_decls = "".join([f"void {f}(); " for f in funcs if f not in ['setup', 'loop']])
+        funcs = re.findall(r'\n(\w+)\s+(\w+)\s*\([^)]*\)\s*\{', content)
+        forward_decls = "".join([f"{ret} {name}(); " for ret, name in funcs if name not in ['setup', 'loop']])
 
         with open(cpp_file, "w") as f:
             f.write('#include "arduino_mock/include/Arduino.h"\n')

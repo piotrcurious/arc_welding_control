@@ -7,12 +7,12 @@
 #define DIR_PIN 11
 
 // Define analog inputs for target wire feed rate and wire burn pulse fudge factor
-#define WIRE_FEED_RATE_PIN A0
-#define WIRE_BURN_PULSE_FUDGE_PIN A1
+#define WIRE_FEED_RATE_PIN A2
+#define WIRE_BURN_PULSE_FUDGE_PIN A3
 
 // Define analog inputs for voltage and current feedback
-#define VOLTAGE_FEEDBACK_PIN A2
-#define CURRENT_FEEDBACK_PIN A3
+#define VOLTAGE_FEEDBACK_PIN A0
+#define CURRENT_FEEDBACK_PIN A1
 
 // Define constants for PWM frequency and duty cycle range
 #define PWM_FREQ 1000 // Hz
