@@ -13,5 +13,5 @@ __pycache__/
 .pytest_cache/
 
 # Simulation outputs
-*.png
+# *.png - User wants evaluation plots preserved
 eval_results.json
