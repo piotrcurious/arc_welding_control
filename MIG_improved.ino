@@ -1,35 +1,44 @@
 
-// Advanced Arduino MIG arc welding controller with contact-triggered pulse
-// Improved version based on simulation testing
+// Optimized Arduino MIG welder controller with PID and adaptive feed
+// Version 2.9 - Smoothed PID and Relaxed Adaptive Feed
 
 #define VOLTAGE_PIN A0
 #define CURRENT_PIN A1
-#define WIRE_FEED_RATE_PIN A2
-#define BURN_PULSE_FACTOR_PIN A3
+#define TARGET_VOLT_PIN A2
+#define TARGET_WFS_PIN A3
 #define PWM_PIN 9
 #define STEP_PIN 10
 #define DIR_PIN 11
 #define GAS_RELAY_PIN 6
 #define POWER_RELAY_PIN 7
 
-// State definitions
+// PID Constants for CV Mode (1ms loop)
+float Kp = 1.2;
+float Ki = 35.0;
+float Kd = 0.01;
+
+float integral = 110.0;
+float prevError = 0;
+float currentDuty = 0;
+
 enum State {
-  WAIT_FOR_TRIGGER,
   GAS_PREFLOW,
   SENSE_CONTACT,
   RETRACT,
   BURN_PULSE,
-  ARC_SUSTAIN,
-  POST_FLOW
+  ARC_SUSTAIN
 };
 
-State currentState = WAIT_FOR_TRIGGER;
+State currentState = GAS_PREFLOW;
 unsigned long stateTimer = 0;
-int pulseCount = 0;
+unsigned long lastLoopTime = 0;
+unsigned long lastStepTime = 0;
 
-// Configurable parameters via pots
-float targetWireFeedRate; // 0-100 mm/s
-float pulseDurationFactor; // 0.5-2.0 multiplier
+void stepMotor() {
+  digitalWrite(STEP_PIN, HIGH);
+  delayMicroseconds(5);
+  digitalWrite(STEP_PIN, LOW);
+}
 
 void setup() {
   pinMode(PWM_PIN, OUTPUT);
@@ -38,51 +47,57 @@ void setup() {
   pinMode(GAS_RELAY_PIN, OUTPUT);
   pinMode(POWER_RELAY_PIN, OUTPUT);
 
-  // High frequency PWM for buck converter
   TCCR1B = (TCCR1B & 0xF8) | 0x01;
 
   Serial.begin(115200);
+  Serial.println("Optimized Welder V2.9 initialized");
+
+  currentState = GAS_PREFLOW;
+  stateTimer = millis();
+  lastLoopTime = micros();
 }
 
 void loop() {
-  int v_raw = analogRead(VOLTAGE_PIN);
-  int i_raw = analogRead(CURRENT_PIN);
+  unsigned long now = micros();
+  float dt = (now - lastLoopTime) / 1000000.0;
+  if (dt < 0.001) return; // 1kHz Loop
+  lastLoopTime = now;
 
-  // Read potentiometers
-  targetWireFeedRate = map(analogRead(WIRE_FEED_RATE_PIN), 0, 1023, 10, 100);
-  pulseDurationFactor = map(analogRead(BURN_PULSE_FACTOR_PIN), 0, 1023, 50, 200) / 100.0;
+  float v_fb = analogRead(VOLTAGE_PIN) / 10.0;
+  float i_fb = analogRead(CURRENT_PIN) / 5.0;
+  float targetV = map(analogRead(TARGET_VOLT_PIN), 0, 1023, 150, 300) / 10.0;
+  float targetWFS = map(analogRead(TARGET_WFS_PIN), 0, 1023, 10, 100);
 
+  float error = targetV - v_fb;
+
+  // State Machine
   switch (currentState) {
-    case WAIT_FOR_TRIGGER:
-      analogWrite(PWM_PIN, 0);
-      digitalWrite(POWER_RELAY_PIN, LOW);
-      digitalWrite(GAS_RELAY_PIN, LOW);
-      // For simulation we auto-trigger
-      currentState = GAS_PREFLOW;
-      stateTimer = millis();
-      break;
-
     case GAS_PREFLOW:
       digitalWrite(GAS_RELAY_PIN, HIGH);
-      if (millis() - stateTimer > 500) {
+      currentDuty = 0;
+      if (millis() - stateTimer > 200) {
         currentState = SENSE_CONTACT;
         digitalWrite(POWER_RELAY_PIN, HIGH);
       }
       break;
 
     case SENSE_CONTACT:
-      analogWrite(PWM_PIN, 50); // Low sensing current
-      digitalWrite(DIR_PIN, HIGH); // Forward
-      stepMotor();
-      if (v_raw < 50) { // Contact detected (V < 0.5V roughly)
+      digitalWrite(DIR_PIN, HIGH);
+      currentDuty = 80;
+      if (now - lastStepTime > 2000) {
+          stepMotor();
+          lastStepTime = now;
+      }
+      if (v_fb < 5.0 && i_fb > 2.0) {
         currentState = RETRACT;
         stateTimer = millis();
       }
       break;
 
     case RETRACT:
-      digitalWrite(DIR_PIN, LOW); // Reverse
-      for (int i = 0; i < 5; i++) {
+      digitalWrite(DIR_PIN, LOW);
+      currentDuty = 0;
+      for (int i = 0; i < 15; i++) {
         stepMotor();
         delayMicroseconds(500);
       }
@@ -91,48 +106,41 @@ void loop() {
       break;
 
     case BURN_PULSE:
-      analogWrite(PWM_PIN, 255); // Maximum pulse
-      if (millis() - stateTimer > (10 * pulseDurationFactor)) {
+      currentDuty = 255;
+      if (millis() - stateTimer > 25) {
         currentState = ARC_SUSTAIN;
-        stateTimer = millis();
+        integral = 110.0;
+        prevError = error;
       }
       break;
 
     case ARC_SUSTAIN:
-      analogWrite(PWM_PIN, 120); // Maintain arc
+      // PID Calculation
+      integral += error * Ki * dt;
+      integral = constrain(integral, 20, 240);
+      float derivative = (error - prevError) / dt;
+      currentDuty = constrain(integral + Kp * error + Kd * derivative, 20, 255);
+
       digitalWrite(DIR_PIN, HIGH);
-      stepMotor();
-      delayMicroseconds(1000 / (targetWireFeedRate / 10.0)); // proportional to target rate
 
-      if (v_raw > 800) { // Arc lost
+      // Relaxed Adaptive WFS
+      float wfs_adj = 1.0 + (v_fb - targetV) * 0.1;
+      wfs_adj = constrain(wfs_adj, 0.7, 1.5);
+
+      float effectiveWFS = targetWFS * wfs_adj;
+      unsigned long stepDelay = 1000000 / (effectiveWFS * 20);
+
+      if (now - lastStepTime > stepDelay) {
+          stepMotor();
+          lastStepTime = now;
+      }
+
+      if (v_fb > 40.0 && i_fb < 0.2) { // Arc broken
         currentState = SENSE_CONTACT;
-      }
-
-      if (millis() - stateTimer > 100) {
-        currentState = BURN_PULSE;
-        stateTimer = millis();
-        pulseCount++;
-        if (pulseCount > 20) { // Weld finished example
-           pulseCount = 0;
-           currentState = POST_FLOW;
-           stateTimer = millis();
-        }
-      }
-      break;
-
-    case POST_FLOW:
-      analogWrite(PWM_PIN, 0);
-      digitalWrite(POWER_RELAY_PIN, LOW);
-      if (millis() - stateTimer > 1000) {
-        digitalWrite(GAS_RELAY_PIN, LOW);
-        currentState = WAIT_FOR_TRIGGER;
       }
       break;
   }
-}
 
-void stepMotor() {
-  digitalWrite(STEP_PIN, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(STEP_PIN, LOW);
+  prevError = error;
+  analogWrite(PWM_PIN, (int)currentDuty);
 }

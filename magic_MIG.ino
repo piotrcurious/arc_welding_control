@@ -23,7 +23,7 @@ const int STEP_FREQ = 1000; // step frequency for stepper motor driver (Hz)
 const int STEP_RES = 200; // step resolution for stepper motor driver (steps/rev)
 const float WIRE_DIAMETER = 0.8; // wire diameter (mm)
 const float WIRE_DENSITY = 7.8; // wire density (g/cm3)
-const float PI = 3.14159; // pi constant
+// const float PI = 3.14159; // PI is defined in Arduino.h
 
 float voltage; // measured voltage (V)
 float current; // measured current (A)
@@ -77,54 +77,6 @@ void setup() {
   power_on = false;
   wire_feed_on = false;
   burn_pulse_on = false;
-
-}
-
-// Main loop
-void loop() {
-  
-  read_inputs(); // read analog inputs and calculate parameters
-
-  if (!gas_on) { // if gas is off
-    if (digitalRead(GAS_RELAY_PIN) == HIGH) { // if gas button is pressed
-      digitalWrite(GAS_RELAY_PIN, LOW); // turn on gas valve
-      gas_on = true;
-      gas_time = millis(); // start gas timer
-    }
-  }
-  
-  if (!power_on) { // if power is off
-    if ((millis() - gas_time) > 500) { // if gas pre-flow time is over
-      digitalWrite(POWER_RELAY_PIN, HIGH); // turn on power contactor
-      power_on = true;
-      power_time = millis(); // start power timer
-    }
-  }
-
-  if (!wire_feed_on) { // if wire feed is off
-    if ((millis() - power_time) > 100) { // if power on-delay time is over
-      digitalWrite(DIR_PIN, HIGH); // set wire feed direction to forward
-      wire_feed_on = true;
-      wire_feed_time = millis(); // start wire feed timer
-      step_count = 0; // reset step count
-      step_dir = 1; // set step direction to positive
-      step_interval = 1000 / STEP_FREQ; // calculate initial step interval based on step frequency
-      step_error = 0; // reset step error
-    }
-  }
-
-  if (!burn_pulse_on) { // if burn pulse is on
-    if (current > 10) { // if arc is initiated
-      digitalWrite(DIR_PIN, LOW); // set wire feed direction to reverse
-      burn_pulse_on = true;
-      burn_pulse_time = millis(); // start burn pulse timer
-    }
-  }
-
-  control_pwm(); // control PWM output for dc-dc buck converter
-  control_stepper(); // control step and dir signals for stepper motor driver
-
-  check_timers(); // check timers and update statuses
 
 }
 
@@ -201,6 +153,54 @@ void check_timers() {
       gas_on = false;
     }
   }
+}
+
+// Main loop
+void loop() {
+
+  read_inputs(); // read analog inputs and calculate parameters
+
+  if (!gas_on) { // if gas is off
+    if (digitalRead(GAS_RELAY_PIN) == HIGH) { // if gas button is pressed
+      digitalWrite(GAS_RELAY_PIN, LOW); // turn on gas valve
+      gas_on = true;
+      gas_time = millis(); // start gas timer
+    }
+  }
+
+  if (!power_on) { // if power is off
+    if ((millis() - gas_time) > 500) { // if gas pre-flow time is over
+      digitalWrite(POWER_RELAY_PIN, HIGH); // turn on power contactor
+      power_on = true;
+      power_time = millis(); // start power timer
+    }
+  }
+
+  if (!wire_feed_on) { // if wire feed is off
+    if ((millis() - power_time) > 100) { // if power on-delay time is over
+      digitalWrite(DIR_PIN, HIGH); // set wire feed direction to forward
+      wire_feed_on = true;
+      wire_feed_time = millis(); // start wire feed timer
+      step_count = 0; // reset step count
+      step_dir = 1; // set step direction to positive
+      step_interval = 1000 / STEP_FREQ; // calculate initial step interval based on step frequency
+      step_error = 0; // reset step error
+    }
+  }
+
+  if (!burn_pulse_on) { // if burn pulse is on
+    if (current > 10) { // if arc is initiated
+      digitalWrite(DIR_PIN, LOW); // set wire feed direction to reverse
+      burn_pulse_on = true;
+      burn_pulse_time = millis(); // start burn pulse timer
+    }
+  }
+
+  control_pwm(); // control PWM output for dc-dc buck converter
+  control_stepper(); // control step and dir signals for stepper motor driver
+
+  check_timers(); // check timers and update statuses
+
 }
 
 //Source: Conversation with Bing, 4/15/2023(1) MIG welder settings explained - Amperage & Wire Speed - WeldingPros. https://weldingpros.net/mig-welder-settings-explained/ Accessed 4/15/2023.
