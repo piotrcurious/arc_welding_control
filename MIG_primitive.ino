@@ -94,81 +94,54 @@ float estimate_wire_burn_amount(float current) {
   return wire_burn_amount;
 }
 
-// Check if the wire is in contact with the workpiece by measuring the voltage drop across the wire
+// Check if the wire is in contact with the workpiece
 bool check_wire_contact() {
-  float wire_voltage_drop = current * WIRE_RESISTIVITY / (PI * sq(WIRE_DIAMETER / 2)); // V/mm
-  float contact_threshold = wire_voltage_drop * ARC_LENGTH + ARC_VOLTAGE_DROP; // V
-  return voltage < contact_threshold;
+  return voltage < 5.0 || current > 200.0;
 }
 
 
 // Initialize the welding state and control logic
 void setup() {
   
-  // Set the PWM output pin as output and set its frequency to 31.25 kHz
   pinMode(PWM_PIN, OUTPUT);
   TCCR1B = TCCR1B & B11111000 | B00000001;
   
-  // Set the step and dir pins as output and initialize them to low
   pinMode(STEP_PIN, OUTPUT);
   pinMode(DIR_PIN, OUTPUT);
   digitalWrite(STEP_PIN, LOW);
   digitalWrite(DIR_PIN, LOW);
   
-  // Set the initial values for the welding state and control logic variables
-  wire_feed_rate = TARGET_WIRE_FEED_RATE;
-  wire_feed_step_delay = 1000000 / (wire_feed_rate * STEPPER_STEPS_PER_REVOLUTION * STEPPER_MICROSTEPS * STEPPER_GEAR_RATIO / (PI * STEPPER_WIRE_FEED_ROLLER_DIAMETER));
-  wire_feed_error = 0;
-  wire_burn_amount = estimate_wire_burn_amount(MAX_CURRENT);
-  wire_burn_pulse_amount = wire_burn_amount * WIRE_BURN_PULSE_FUDGE_FACTOR;
-  wire_burn_pulse_error = 0;
-  voltage = read_voltage();
-  current = read_current();
-  pwm_duty_cycle = map_float(voltage, MIN_VOLTAGE, MAX_VOLTAGE, MIN_PWM_DUTY_CYCLE, MAX_PWM_DUTY_CYCLE);
+  wire_feed_rate = 150.0; // mm/s
+  // Corrected step delay for 20 steps/mm
+  wire_feed_step_delay = 1000000.0 / (wire_feed_rate * 20.0);
+
+  pwm_duty_cycle = 120;
   set_pwm_duty_cycle(pwm_duty_cycle);
-  wire_contact = check_wire_contact();
 }
 
 // Update the welding state and control logic
 void loop() {
-  
-  // Read the voltage and current feedback from the analog inputs
   voltage = read_voltage();
   current = read_current();
-  
-  // Check if the wire is in contact with the workpiece
   wire_contact = check_wire_contact();
   
-  // If the wire is in contact, retract it slightly and increase the current to initiate a pulse
   if (wire_contact) {
     set_stepper_direction(false); // backward
-    make_stepper_step(); // one step back
-    pwm_duty_cycle = map_float(current * PULSE_CURRENT_RATIO, MIN_CURRENT, MAX_CURRENT, MIN_PWM_DUTY_CYCLE, MAX_PWM_DUTY_CYCLE); // increase current
-    set_pwm_duty_cycle(pwm_duty_cycle); // set PWM duty cycle
-    delay(PULSE_DURATION * 1000); // wait for pulse duration
-    pwm_duty_cycle = map_float(current / PULSE_CURRENT_RATIO, MIN_CURRENT, MAX_CURRENT, MIN_PWM_DUTY_CYCLE, MAX_PWM_DUTY_CYCLE); // decrease current
-    set_pwm_duty_cycle(pwm_duty_cycle); // set PWM duty cycle
-    
-    // Estimate the amount of wire burned by the pulse and update the error
-    wire_burn_amount = estimate_wire_burn_amount(current * PULSE_CURRENT_RATIO);
-    wire_burn_pulse_error = wire_burn_pulse_amount - wire_burn_amount;
-    
-    // Feed the wire by half of the estimated wire burn amount plus the error correction term
-    set_stepper_direction(true); // forward
-    float wire_feed_steps = (wire_burn_amount / 2 + wire_burn_pulse_error) * STEPPER_STEPS_PER_REVOLUTION * STEPPER_MICROSTEPS * STEPPER_GEAR_RATIO / (PI * STEPPER_WIRE_FEED_ROLLER_DIAMETER); // steps to feed
-    for (int i = 0; i < wire_feed_steps; i++) {
-      make_stepper_step(); // one step forward
-      delayMicroseconds(wire_feed_step_delay); // wait for step delay
+    for(int i=0; i<10; i++) {
+        make_stepper_step();
+        delayMicroseconds(500);
     }
-  }
-  
-  // If the wire is not in contact, feed it by the estimated wire burn amount before each pulse
-  else {
+    set_pwm_duty_cycle(90); // Burst
+    delay(5);
+  } else {
     set_stepper_direction(true); // forward
-    float wire_feed_steps = wire_burn_pulse_amount * STEPPER_STEPS_PER_REVOLUTION * STEPPER_MICROSTEPS * STEPPER_GEAR_RATIO / (PI * STEPPER_WIRE_FEED_ROLLER_DIAMETER); // steps to feed
-    for (int i = 0; i < wire_feed_steps; i++) {
-      make_stepper_step(); // one step forward
-      delayMicroseconds(wire_feed_step_delay); // wait for step delay
-    }
+    make_stepper_step();
+
+    // Simple proportional control for voltage
+    float error = 22.5 - voltage;
+    pwm_duty_cycle += error * 0.1;
+    set_pwm_duty_cycle(pwm_duty_cycle);
+
+    delayMicroseconds(wire_feed_step_delay);
   }
 }

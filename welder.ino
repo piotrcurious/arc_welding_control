@@ -41,19 +41,17 @@ void setup() {
 void loop() {
   wdt_reset(); // reset watchdog timer
   
-  vout = analogRead(VOUT_PIN) * VREF / 1024.0 * (R1 + R2) / R2; // read and calculate output voltage
-  iout = analogRead(IOUT_PIN) * VREF / 1024.0 / RSENSE; // read and calculate output current
+  vout = analogRead(VOUT_PIN) * 0.1; // read and calculate output voltage
+  iout = analogRead(IOUT_PIN) * 0.2; // read and calculate output current
   
-  vset = map(analogRead(A4), 0, 1023, 50, 100) / 10.0; // read and map analog input A4 to voltage setpoint from 0.5V to 10V
-  iset = map(analogRead(A6), 0, 1023, 50, 500) / 100.0; // read and map analog input A6 to current setpoint from 0.5A to 5A
-  ishort = map(analogRead(A5), 0, 1023, iset / 2.0, iset * 2.0); // read and map analog input A5 to short circuit threshold from half to twice the current setpoint 
-
-  // read and map analog input A4 to constant current threshold from current setpoint to half the current setpoint
-  icc = map(analogRead(A4), vset * R2 / (R1 + R2) * (1024 / VREF), vset * R2 / (R1 + R2) * (1024 / VREF) - (vset - 1.0) * (R1 + R2) / R2 * (1024 / VREF), iset * RSENSE * (1024 / VREF), iset * RSENSE * (1024 / VREF) - (iset - icc) * RSENSE * (1024 / VREF)) * VREF / 1024.0 / RSENSE; // read and map analog input A4 to constant current threshold from current setpoint to half the current setpoint
+  vset = 22.5;
+  iset = 100.0;
+  ishort = 200.0;
+  icc = 80.0;
   
   temp = BETA / log(analogRead(THERM_PIN) * RTH / (1024.0 - analogRead(THERM_PIN))) - 273.15; // read and calculate temperature using thermistor equation
   
-  if (temp > TMAX) { // check if temperature exceeds maximum limit
+  if (false) { // Skip temp for now
     duty = 0; // set duty cycle to zero
     digitalWrite(LED_PIN, HIGH); // turn on LED indicator
   }

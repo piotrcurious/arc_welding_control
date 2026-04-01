@@ -23,6 +23,11 @@ class MIGSimulator:
         self.arc_active = False
         self.hand_pos = 0.0
 
+        # Noise settings
+        self.v_noise_std = 0.2  # Volts
+        self.i_noise_std = 1.0  # Amps
+        self.hand_drift = 0.0
+
         # History
         self.history = {'time': [], 'v_out': [], 'i_out': [], 'gap': [], 'arc': [], 'duty': [], 'steps': []}
         self.time = 0.0
@@ -42,8 +47,15 @@ class MIGSimulator:
         sub_dt = self.dt / sub_steps
 
         for _ in range(sub_steps):
-            # Hand Jitter
-            self.hand_pos += (math.sin(self.time * 2) * 0.002 + (random.random() - 0.5) * 0.001) * (sub_dt / self.dt)
+            # Complex Hand Movement: Drift + Vibration + Jitter
+            self.hand_drift += (random.random() - 0.5) * 0.01 * (sub_dt / self.dt)
+            self.hand_drift = max(-2.0, min(2.0, self.hand_drift))
+
+            vibration = math.sin(self.time * 5.0) * 0.2 + math.sin(self.time * 20.0) * 0.05
+            jitter = (random.random() - 0.5) * 0.05
+
+            self.hand_pos = self.hand_drift + vibration + jitter
+
             current_gap = self.gap + self.hand_pos
             if current_gap < 0: current_gap = 0
 
@@ -51,7 +63,7 @@ class MIGSimulator:
             if current_gap <= 0.001: # Direct contact
                 R_load = self.R_short
                 self.arc_active = False
-            elif self.arc_active or (current_gap < 0.8 and self.v_cap > 20.0):
+            elif self.arc_active or (current_gap < 0.8 and self.v_cap > 22.0):
                 self.arc_active = True
                 V_arc_ideal = self.V_ion + current_gap * self.E_field
                 # Resistance of the arc depends on current
@@ -83,19 +95,19 @@ class MIGSimulator:
 
         self.history['time'].append(self.time)
 
-        # Analog values for controller
-        v_out = self.v_cap
-        i_out = self.i_ind
+        # Analog values for controller (with noise)
+        v_out_noisy = self.v_cap + random.gauss(0, self.v_noise_std)
+        i_out_noisy = self.i_ind + random.gauss(0, self.i_noise_std)
 
-        self.history['v_out'].append(v_out)
-        self.history['i_out'].append(i_out)
+        self.history['v_out'].append(v_out_noisy)
+        self.history['i_out'].append(i_out_noisy)
         self.history['gap'].append(self.gap + self.hand_pos)
         self.history['arc'].append(1.0 if self.arc_active else 0.0)
         self.history['duty'].append(duty)
         self.history['steps'].append(1.0 if step_pin else 0.0)
 
         self.time += self.dt
-        return v_out, i_out
+        return v_out_noisy, i_out_noisy
 
     def plot(self, filename):
         if not self.history['time']: return

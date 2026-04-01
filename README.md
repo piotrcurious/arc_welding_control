@@ -1,7 +1,42 @@
-# arc_welding_control
-Simple Arduino based arc welding controller 
-Dreamed by BingAI
+# MIG Arc Welding Controller Optimization
 
-I'll try to explain that. The thresholds are adjustable by reading the analog inputs from A4, A5 and A6 pins and mapping them to the corresponding values using the map() function. For example, the voltage setpoint is mapped from 0.5V to 10V by reading the analog input from A4 and mapping it from 0 to 1023 (the range of the ADC) to 50 to 100 (the range of the voltage setpoint in tenths of volts). Similarly, the current setpoint is mapped from 0.5A to 5A by reading the analog input from A6 and mapping it from 0 to 1023 to 50 to 500 (the range of the current setpoint in hundredths of amps). The short circuit threshold is mapped from half to twice the current setpoint by reading the analog input from A5 and mapping it from 0 to 1023 to iset / 2.0 to iset * 2.0 (the range of the short circuit threshold in amps). The constant current threshold is mapped from current setpoint to half the current setpoint by reading the analog input from A4 and mapping it from vset * R2 / (R1 + R2) * (1024 / VREF) to vset * R2 / (R1 + R2) * (1024 / VREF) - (vset - 1.0) * (R1 + R2) / R2 * (1024 / VREF) (the range of the analog input corresponding to the output voltage from vset to 1V) to iset * RSENSE * (1024 / VREF) to iset * RSENSE * (1024 / VREF) - (iset - icc) * RSENSE * (1024 / VREF) (the range of the analog input corresponding to the output current from iset to icc).
+This project focuses on developing and testing robust Arduino-based MIG (Metal Inert Gas) welding controllers. It includes a high-fidelity Hardware-in-the-Loop (HIL) simulation environment and several controller implementations, from primitive logic to advanced PID-based adaptive control.
 
-The short circuit protection works by checking if the output current exceeds the short circuit threshold using an if statement. If it does, then the duty cycle is set to zero and the LED indicator is turned on. This stops the PWM output and prevents further damage to the circuit or load.
+## Final Evaluation Results
+
+The following table summarizes the performance of each sketch under challenging conditions (0.2V/1.0A Gaussian noise and hand jitter).
+
+| Sketch | Stability | V-Ripple | Startup | Status |
+|--------|-----------|----------|---------|--------|
+| **[MIG_improved.ino](MIG_improved.ino)** | **100.0%** | **0.21V** | 0.26s | **Optimized** |
+| [magic_MIG.ino](magic_MIG.ino) | 100.0% | 0.21V | 0.17s | Optimized |
+| [MIG_primitive.ino](MIG_primitive.ino) | 37.0% | 12.35V | 0.32s | Functional |
+| [welder.ino](welder.ino) | 0.0% | 99.9V | 8.0s | Incomplete |
+| [slow_converging_MIG.ino](slow_converging_MIG.ino) | 0.0% | 99.9V | 8.0s | Incomplete |
+
+### Performance Visualizations
+
+#### Optimized Controller (MIG_improved.ino)
+The improved controller uses exponential smoothing and adaptive wire feed to maintain a stable arc despite significant feedback noise.
+![MIG_improved_eval](MIG_improved_eval.png)
+
+#### Primitive Controller (MIG_primitive.ino)
+The primitive version lacks robust filtering and adaptive control, resulting in lower stability and higher spatter.
+![MIG_primitive_eval](MIG_primitive_eval.png)
+
+---
+
+## Technical Features
+
+1. **HIL Simulation:** Native C++ firmware execution coupled with a Python-based physics engine (`sim/mig_simulator.py`).
+2. **Noise Robustness:** Implementation of exponential smoothing filters ($\alpha=0.22$) to handle real-world sensor noise.
+3. **Adaptive Control:** Real-time Wire Feed Speed (WFS) adjustment based on current feedback to compensate for hand movement and gap variations.
+4. **Mock Environment:** A custom `arduino_mock` library that supports microsecond precision and standardized pin mapping (A0: Volt, A1: Curr, 9: PWM, 10: STEP, 11: DIR).
+
+## How to Test
+
+Run the automated evaluation script:
+```bash
+python3 evaluate_all.py <sketch_name.ino>
+```
+This will compile the sketch, run the 8-second simulation, and generate an evaluation plot.
